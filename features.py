@@ -66,7 +66,6 @@ def summarizebot(user_input: str) -> str:
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-
 def checkAvailability1(user_input: str):
     try:
         res = co.chat(
@@ -74,10 +73,20 @@ def checkAvailability1(user_input: str):
             messages=[
                 {
                     "role": "user",
-                    "content": f"Convert this text into a JSON-like object with the fields 'task_name', 'duration_hours', 'week_start', and 'week_end'."
-                               f" Ensure the output is a plain text string, without markdown formatting, code blocks, or explanations."
-                               f" If you don't know how to respond, return: {{}}.\n"
-                               f"Text: {user_input}"
+                    "content": f"""
+                    Extract the details from this scheduling request and return them as a JSON object with the following fields:
+                    {{
+                        "task_name": "<Task Name>",
+                        "duration_hours": <Duration in hours (positive number)>,
+                        "week_start": "<YYYY-MM-DD>",
+                        "week_end": "<YYYY-MM-DD>"
+                    }}
+
+                    Only return the JSON object. Do not include explanations, formatting, or any extra text.
+                    If you are unable to extract the details, return an empty JSON object: {{}}.
+
+                    Text: {user_input}
+                    """
                 }
             ],
         )
@@ -92,34 +101,39 @@ def checkAvailability1(user_input: str):
 
         try:
             event_data = json.loads(response_text)
-            print(event_data)
-        except json.JSONDecodeError:
+            if not event_data.get("task_name") or not event_data.get("duration_hours"):
+                raise ValueError("Missing required fields in AI response.")
+
+            print("Extracted Event Data:", event_data)
+        except (json.JSONDecodeError, ValueError) as e:
             raise HTTPException(status_code=500, detail=f"Invalid JSON response: {response_text}")
 
+        # Call Logic Apps API
         logic_apps_url = "https://prod-21.northcentralus.logic.azure.com:443/workflows/e1d025b460494c53862f958fe67c0be9/triggers/When_a_HTTP_request_is_received/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2FWhen_a_HTTP_request_is_received%2Frun&sv=1.0&sig=3FElBEyk25j3s6YLw3L2nw45EjCugN7May7ixC6NUWc"
         response = requests.post(logic_apps_url, json=event_data)
-        available_dates = response.json()
-        # show events
-        # print(available_dates)
-        # with open("file.json", "w") as f:
-        #     json.dump(available_dates, f, indent=2)
+
+        try:
+            available_dates = response.json()
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=500, detail="Invalid response from Logic Apps API")
+
+        print("Unavailable Times:", json.dumps(available_dates, indent=2))
 
         request = f"""
         I want to schedule the following event:
-        {event_data}
+        {json.dumps(event_data, indent=2)}
 
         Please note that I am **unavailable** during the following times:
-
         {json.dumps(available_dates, indent=2)}
 
-        Kindly suggest a suitable time outside of these unavailable slots.
+        Based on this, provide a list of available time slots that fit my schedule.
         """
 
-        # Call provideDates and return JSON instead of string
         return provideDates(request)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 def provideDates(user_input: str):
     try:
@@ -128,10 +142,25 @@ def provideDates(user_input: str):
             messages=[
                 {
                     "role": "user",
-                    "content": f"Return a JSON object with exactly five available time slots for the event. The object should have the structure:\n"
-                               f'{{"available_times": [{{"date": "YYYY-MM-DD", "start_time": "HH:MM", "end_time": "HH:MM"}}]}}.\n'
-                               f"Do not include any explanations, formatting, or text outside this structure. If you can't provide the response, return: {{}}.\n"
-                               f"Input: {user_input}"
+                    "content": f"""
+                    Based on the following unavailable times, determine **only the available time slots** where I can schedule my event.
+
+                    Unavailable times: {json.dumps(user_input, indent=2)}
+
+                    Provide a JSON object structured as:
+                    {{
+                        "available_times": [
+                            {{"date": "YYYY-MM-DD", "start_time": "HH:MM", "end_time": "HH:MM"}}
+                        ]
+                    }}
+
+                    Ensure:
+                    - The available slots do **not** overlap with unavailable times.
+                    - The slots are at least as long as my requested duration.
+                    - The response contains **only** the JSON object, with no additional text or formatting.
+
+                    If no available slots are found, return: {{"available_times": []}}
+                    """
                 }
             ],
         )
@@ -152,3 +181,4 @@ def provideDates(user_input: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
