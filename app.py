@@ -15,6 +15,59 @@ class SummarizeRequest(BaseModel):
 
 class AvailabilityRequest(BaseModel):
     user_input: str
+    
+class ChatRequest(BaseModel):
+    user_id: str  # Store conversations per user
+    message: str  # User's message
+
+
+
+@app.post("/chat")
+async def chat(request: ChatRequest):
+    try:
+        # Send user input to Cohere AI
+        res = co.chat(
+            model="command-r-plus",
+            messages=[{"role": "user", "content": request.message}],
+        )
+
+        bot_response = res.message.content[0].text if res.message.content else "I'm not sure how to respond."
+
+        # Store chat history in Firestore
+        chat_ref = db.collection("chats").add({
+            "user_id": request.user_id,
+            "user_message": request.message,
+            "bot_response": bot_response,
+            "timestamp": firestore.SERVER_TIMESTAMP
+        })
+
+        return {"message_id": chat_ref[1].id, "bot_response": bot_response}
+
+    except Exception as e:
+        print(f"❌ ERROR: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/chats/{user_id}")
+async def get_chat_history(user_id: str):
+    """
+    Fetches chat history for a given user
+    """
+    try:
+        chats = db.collection("chats").where("user_id", "==", user_id).order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
+
+        return [
+            {
+                "message_id": chat.id,
+                "user_message": chat.to_dict().get("user_message"),
+                "bot_response": chat.to_dict().get("bot_response"),
+                "timestamp": chat.to_dict().get("timestamp")
+            }
+            for chat in chats
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 # API endpoint to summarize text and save it to Firestore
 @app.post("/summarize")
@@ -43,6 +96,8 @@ async def get_summaries(user_id: str):
 @app.post("/checkAvailability")
 def checkAvailability(request: AvailabilityRequest):
     return checkAvailability1(request.user_input)
+
+
 
 @app.post("/add_task")
 async def add_task(request: SummarizeRequest):
@@ -75,7 +130,6 @@ async def get_tasks(user_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @app.post("/add_reminder")
 async def add_reminder(request: SummarizeRequest):
     note_ref = db.collection("reminders").add({
@@ -103,8 +157,6 @@ async def get_reminders(user_id: str):
         ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
 
 
 # this is an example of how the api routes work

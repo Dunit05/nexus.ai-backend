@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Chatbot</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      #chat-container {
+        max-width: 600px;
+        margin: auto;
+      }
+      #messages {
+        border: 1px solid #ccc;
+        padding: 10px;
+        height: 300px;
+        overflow-y: auto;
+      }
+      .message {
+        margin-bottom: 10px;
+      }
+      .user {
+        color: blue;
+      }
+      .bot {
+        color: green;
+      }
+      input,
+      button {
+        width: 100%;
+        padding: 10px;
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="chat-container">
+      <h2>Chat with AI</h2>
+      <div id="messages"></div>
+      <input type="text" id="userMessage" placeholder="Type your message..." />
+      <button onclick="sendMessage()">Send</button>
+    </div>
+
+    <script>
+      async function sendMessage() {
+        const messageInput = document.getElementById("userMessage");
+        const messagesDiv = document.getElementById("messages");
+
+        const userMessage = messageInput.value.trim();
+        if (userMessage === "") return;
+
+        // Add user message to chat
+        messagesDiv.innerHTML += `<p class="message user"><strong>You:</strong> ${userMessage}</p>`;
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        messageInput.value = ""; // Clear input field
+
+        try {
+          const response = await fetch("http://127.0.0.1:8000/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user_id: "test_user",
+              message: userMessage,
+            }),
+          });
+
+          const data = await response.json();
+          console.log("Bot Response:", data);
+
+          // Display bot response
+          if (data.bot_response) {
+            messagesDiv.innerHTML += `<p class="message bot"><strong>Bot:</strong> ${data.bot_response}</p>`;
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+          } else {
+            messagesDiv.innerHTML += `<p class="message bot"><strong>Bot:</strong> Sorry, I didn't understand that.</p>`;
+          }
+        } catch (error) {
+          console.error("Error:", error);
+          messagesDiv.innerHTML += `<p class="message bot"><strong>Bot:</strong> Error connecting to AI.</p>`;
+        }
+      }
+    </script>
+  </body>
+</html>
