@@ -4,7 +4,7 @@ import google.auth
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Depends, Header
 from starlette.responses import RedirectResponse
 from features import *
 
@@ -23,9 +23,11 @@ class ChatRequest(BaseModel):
 
 
 @app.post("/chat")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, user: dict = Depends(verify_firebase_token)):
+    """
+    Chat API that requires Firebase Authentication.
+    """
     try:
-        # Send user input to Cohere AI
         res = co.chat(
             model="command-r-plus",
             messages=[{"role": "user", "content": request.message}],
@@ -33,9 +35,9 @@ async def chat(request: ChatRequest):
 
         bot_response = res.message.content[0].text if res.message.content else "I'm not sure how to respond."
 
-        # Store chat history in Firestore
+        # ✅ Use Firebase UID instead of user_id from request
         chat_ref = db.collection("chats").add({
-            "user_id": request.user_id,
+            "user_id": user["uid"],  # Store Firebase UID
             "user_message": request.message,
             "bot_response": bot_response,
             "timestamp": firestore.SERVER_TIMESTAMP
@@ -44,16 +46,16 @@ async def chat(request: ChatRequest):
         return {"message_id": chat_ref[1].id, "bot_response": bot_response}
 
     except Exception as e:
-        print(f"❌ ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
     
 @app.get("/chats/{user_id}")
-async def get_chat_history(user_id: str):
+async def get_chat_history(user: dict = Depends(verify_firebase_token)):
     """
-    Fetches chat history for a given user
+    Fetch chat history for the authenticated user.
     """
     try:
-        chats = db.collection("chats").where("user_id", "==", user_id).order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
+        chats = db.collection("chats").where("user_id", "==", user["uid"]).order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
 
         return [
             {
@@ -68,30 +70,101 @@ async def get_chat_history(user_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def get_current_user(authorization: str = Header(None)):
+    """
+    FastAPI dependency to extract and verify Firebase Authentication token.
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+
+    token = authorization.split("Bearer ")[-1]  # Extract token from "Bearer <token>"
+    user_data = verify_firebase_token(token)  # Validate token
+    return user_data  # Returns user details
+
+# ✅ Protect /chat with Firebase authentication
+@app.post("/chat")
+async def chat(request: ChatRequest, user: dict = Depends(get_current_user)):
+    """
+    Chat API that requires Firebase Authentication.
+    """
+    try:
+        # Send user input to Cohere AI
+        res = co.chat(
+            model="command-r-plus",
+            messages=[{"role": "user", "content": request.message}],
+        )
+
+        bot_response = res.message.content[0].text if res.message.content else "I'm not sure how to respond."
+
+        # Store chat history in Firestore
+        chat_ref = db.collection("chats").add({
+            "user_id": user["uid"],  # Use Firebase UID instead of user_id from request
+            "user_message": request.message,
+            "bot_response": bot_response,
+            "timestamp": firestore.SERVER_TIMESTAMP
+        })
+
+        return {"message_id": chat_ref[1].id, "bot_response": bot_response}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# this is an example of how the api routes work
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
 
 # API endpoint to summarize text and save it to Firestore
 @app.post("/summarize")
-async def summarize(request: SummarizeRequest):
+async def summarize(request: SummarizeRequest, user: dict = Depends(get_current_user)):
+    """
+    Summarize text and associate it with the authenticated Firebase user.
+    """
     summary = summarizebot(request.message)
 
-    # store in firestore/database the user_id, original_text, summary, timestamp
     note_ref = db.collection("summaries").add({
-        "user_id": request.user_id,
+        "user_id": user["uid"],  # Use Firebase UID
         "original_text": request.message,
         "summary": summary,
         "timestamp": firestore.SERVER_TIMESTAMP
     })
 
-    # return the summary and note_id from api
     return {"summary": summary, "note_id": note_ref[1].id}
 
 # API endpoint to retrieve summaries for a specific user
-@app.get("/summaries/{user_id}")
-async def get_summaries(user_id: str):
-    # this is basically a query to get all the summaries for a user
-    notes = db.collection("summaries").where("user_id", "==", user_id).order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
-    
-    return [{"note_id": note.id, "original_text": note.to_dict()["original_text"], "summary": note.to_dict()["summary"], "timestamp": note.to_dict()["timestamp"]} for note in notes]
+
+@app.get("/summaries")
+async def get_summaries(user: dict = Depends(verify_firebase_token)):
+    """
+    Fetch all summaries for the authenticated user using email instead of UID.
+    """
+    try:
+        user_email = user.get("email")  # ✅ Extract email from Firebase token
+        if not user_email:
+            raise HTTPException(status_code=400, detail="User email not found")
+
+        summaries = db.collection("summaries").where("user_id", "==", user_email).order_by(
+            "timestamp", direction=firestore.Query.DESCENDING
+        ).stream()
+
+        return [
+            {
+                "note_id": summary.id,
+                "original_text": summary.to_dict().get("original_text"),
+                "summary": summary.to_dict().get("summary"),
+                "timestamp": summary.to_dict().get("timestamp"),
+            }
+            for summary in summaries
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/debug_user")
+async def debug_user(user: dict = Depends(verify_firebase_token)):
+    return user  # ✅ Check what Firebase is returning
+
 
 @app.post("/checkAvailability")
 def checkAvailability(request: AvailabilityRequest):
@@ -157,9 +230,3 @@ async def get_reminders(user_id: str):
         ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-# this is an example of how the api routes work
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}

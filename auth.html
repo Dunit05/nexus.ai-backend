@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Firebase Auth Test</title>
+
+    <!-- ✅ Use compat versions for Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
+
+    <script>
+      // ✅ Firebase Configuration (Replace with your own Firebase config)
+      const firebaseConfig = {
+        apiKey: "AIzaSyAPiPEnFfA8MtJYEp238CtKHVlH_cxZXHA",
+        authDomain: "components-feature.firebaseapp.com",
+        projectId: "components-feature",
+        storageBucket: "components-feature.firebasestorage.app",
+        messagingSenderId: "984014977276",
+        appId: "1:984014977276:web:9864ac90b9159bfd6dff79",
+        measurementId: "G-9CZ6F6N21Y",
+      };
+
+      // ✅ Initialize Firebase
+      firebase.initializeApp(firebaseConfig);
+
+      // ✅ Initialize Firebase Authentication
+      const auth = firebase.auth(); // <-- This was missing!
+
+      async function signIn() {
+        try {
+          const provider = new firebase.auth.GoogleAuthProvider();
+          provider.setCustomParameters({ prompt: "select_account" });
+          const result = await auth.signInWithPopup(provider);
+
+          const user = result.user;
+          document.getElementById(
+            "user-info"
+          ).innerText = `Signed in as: ${user.email}`;
+
+          const token = await user.getIdToken();
+          document.getElementById("token").innerText = token;
+
+          // ✅ Send token to FastAPI for verification
+          await fetch("http://127.0.0.1:8000/verify_token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ idToken: token }),
+          })
+            .then((res) => res.json())
+            .then((data) => console.log("✅ Token verified:", data))
+            .catch((error) => console.error("Error verifying token:", error));
+        } catch (error) {
+          console.error("Sign-in error", error);
+          alert(`Sign-in failed: ${error.message}`);
+        }
+      }
+
+      function signOut() {
+        auth.signOut().then(() => {
+          document.getElementById("user-info").innerText = "Not signed in";
+          document.getElementById("token").innerText = "";
+
+          // ✅ Inform backend (optional)
+          fetch("http://127.0.0.1:8000/logout", { method: "POST" })
+            .then((res) => res.json())
+            .then((data) => console.log("Logged out:", data))
+            .catch((error) => console.error("Logout error:", error));
+        });
+      }
+
+      async function fetchSummaries() {
+        const token = document.getElementById("token").innerText;
+        if (!token) {
+          alert("Please sign in first!");
+          return;
+        }
+
+        try {
+          // ✅ Fetch summaries from FastAPI
+          const response = await fetch("http://127.0.0.1:8000/summaries", {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`, // ✅ Include Firebase token
+            },
+          });
+
+          if (!response.ok) throw new Error("Failed to fetch summaries");
+
+          const summaries = await response.json();
+          document.getElementById("response").innerText = JSON.stringify(
+            summaries,
+            null,
+            2
+          );
+        } catch (error) {
+          console.error("Fetch summaries error:", error);
+          alert("Error fetching summaries: " + error.message);
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <h2>Firebase Auth with FastAPI</h2>
+    <button onclick="signIn()">Sign in with Google</button>
+    <button onclick="signOut()">Sign out</button>
+    <p id="user-info">Not signed in</p>
+
+    <h3>Firebase Token:</h3>
+    <p id="token" style="word-wrap: break-word"></p>
+
+    <h3>Test API Calls:</h3>
+    <button onclick="sendRequest('chat')">Send Chat Request</button>
+    <button onclick="fetchSummaries()">Fetch Summaries</button>
+
+    <h3>API Response:</h3>
+    <pre id="response"></pre>
+  </body>
+</html>
