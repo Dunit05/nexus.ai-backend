@@ -1,9 +1,9 @@
 import cohere
 import os
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore, auth
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import json
@@ -236,3 +236,16 @@ def provideDates(event_data, available_slots):
         print(f"❌ ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+def verify_firebase_token(authorization: str = Header(None)):
+    """
+    Verifies the Firebase Authentication Token and extracts user info.
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+
+    token = authorization.split("Bearer ")[-1]  # Extract token
+    try:
+        decoded_token = auth.verify_id_token(token)
+        return decoded_token  # Contains user details (uid, email)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid authentication token")
