@@ -43,6 +43,7 @@ async def get_summaries(user_id: str):
 @app.post("/checkAvailability")
 def checkAvailability(request: AvailabilityRequest):
     return checkAvailability1(request.user_input)
+
 @app.post("/add_task")
 async def add_task(request: SummarizeRequest):
     priority = prioritize_task(request.message)

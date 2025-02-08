@@ -42,25 +42,40 @@
 
           const resultElement = document.getElementById("result");
 
-          // Check if response contains available times
+          // Initialize output
+          let outputHTML = "<h3>Information:</h3>";
+
+          // Display Available Time Slots
           if (
-            data &&
             data.available_times &&
-            Array.isArray(data.available_times)
+            Array.isArray(data.available_times) &&
+            data.available_times.length > 0
           ) {
-            let formattedTimes = "<h3>Available Times:</h3><ul>";
+            outputHTML += "<h3>Available Times:</h3><ul>";
 
             data.available_times.forEach((time) => {
-              formattedTimes += `<li><strong>Date:</strong> ${time.date}, 
-                           <strong>Start:</strong> ${time.start_time}, 
-                           <strong>End:</strong> ${time.end_time}</li>`;
+              outputHTML += `<li><strong>Date:</strong> ${time.date}, 
+                         <strong>Start:</strong> ${time.start_time}, 
+                         <strong>End:</strong> ${time.end_time}</li>`;
             });
 
-            formattedTimes += "</ul>";
-            resultElement.innerHTML = formattedTimes;
+            outputHTML += "</ul>";
           } else {
-            resultElement.innerHTML = "<p>No available times found.</p>";
+            outputHTML += "<p>No available times found.</p>";
           }
+
+          // Display Selected Time Slot
+          if (data.selected_time) {
+            outputHTML += `<h3>Best Suggested Time:</h3>
+                       <p><strong>Date:</strong> ${data.selected_time.date}, 
+                          <strong>Start:</strong> ${data.selected_time.start_time}, 
+                          <strong>End:</strong> ${data.selected_time.end_time}</p>`;
+          } else {
+            outputHTML += "<p>No suggested time was found.</p>";
+          }
+
+          // Update HTML
+          resultElement.innerHTML = outputHTML;
         } catch (error) {
           console.error("Error:", error);
           document.getElementById("result").innerHTML =
