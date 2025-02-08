@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fetch Dates</title>
+  </head>
+  <body>
+    <h2>Fetch Dates</h2>
+    <textarea
+      id="message"
+      rows="4"
+      cols="50"
+      placeholder="Enter text to summarize..."
+    ></textarea>
+    <br />
+    <button onclick="sendRequest()">Fetch</button>
+
+    <h3>Information:</h3>
+    <p id="result"></p>
+
+    <script>
+      async function sendRequest() {
+        const userMessage = document.getElementById("message").value;
+
+        try {
+          const response = await fetch(
+            "http://127.0.0.1:8000/checkAvailability",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                user_input: userMessage,
+              }),
+            }
+          );
+
+          const data = await response.json();
+          console.log("Response:", data); // Logs JSON response in Console
+
+          const resultElement = document.getElementById("result");
+
+          // Check if response contains available times
+          if (
+            data &&
+            data.available_times &&
+            Array.isArray(data.available_times)
+          ) {
+            let formattedTimes = "<h3>Available Times:</h3><ul>";
+
+            data.available_times.forEach((time) => {
+              formattedTimes += `<li><strong>Date:</strong> ${time.date}, 
+                           <strong>Start:</strong> ${time.start_time}, 
+                           <strong>End:</strong> ${time.end_time}</li>`;
+            });
+
+            formattedTimes += "</ul>";
+            resultElement.innerHTML = formattedTimes;
+          } else {
+            resultElement.innerHTML = "<p>No available times found.</p>";
+          }
+        } catch (error) {
+          console.error("Error:", error);
+          document.getElementById("result").innerHTML =
+            "<p>Failed to fetch available times.</p>";
+        }
+      }
+    </script>
+  </body>
+</html>

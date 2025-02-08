@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Summarize Text with FastAPI</title>
+  </head>
+  <body>
+    <h2>Summarize Text</h2>
+    <textarea
+      id="message"
+      rows="4"
+      cols="50"
+      placeholder="Enter text to summarize..."
+    ></textarea>
+    <br />
+    <button onclick="sendRequest()">Summarize</button>
+
+    <h3>Summary:</h3>
+    <p id="result"></p>
+
+    <script>
+      async function sendRequest() {
+        const userMessage = document.getElementById("message").value;
+
+        if (!userMessage.trim()) {
+          alert("Please enter a message to summarize!");
+          return;
+        }
+
+        try {
+          const response = await fetch(
+            "https://components-jdc5.onrender.com/summarize",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ message: userMessage, user_id: "123" }),
+            }
+          );
+
+          const data = await response.json();
+          console.log("Response:", data); // Logs JSON response in Console
+          document.getElementById("result").innerText =
+            data.summary || "No summary available.";
+        } catch (error) {
+          console.error("Error:", error);
+          alert("Failed to connect to API!");
+        }
+      }
+    </script>
+  </body>
+</html>
