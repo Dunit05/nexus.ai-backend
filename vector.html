@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RAG Query Tester</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        margin-top: 50px;
+      }
+      input,
+      button {
+        padding: 10px;
+        margin: 10px;
+      }
+      #response {
+        margin-top: 20px;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>RAG Query Tester</h2>
+    <input
+      type="text"
+      id="user_id"
+      placeholder="Enter User ID (e.g., hackhive)"
+      required
+    />
+    <input type="text" id="query" placeholder="Enter your query" required />
+    <button onclick="sendQuery()">Submit</button>
+
+    <div id="response"></div>
+
+    <script>
+      async function sendQuery() {
+        const userId = document.getElementById("user_id").value;
+        const query = document.getElementById("query").value;
+
+        if (!userId || !query) {
+          alert("Please enter both User ID and Query");
+          return;
+        }
+
+        const responseDiv = document.getElementById("response");
+        responseDiv.innerHTML = "Processing...";
+
+        const data = { user_id: userId, query: query };
+
+        try {
+          const response = await fetch("http://127.0.0.1:8000/query_rag", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data),
+          });
+
+          const result = await response.json();
+          responseDiv.innerHTML = `<p><strong>Response:</strong> ${result.response}</p>`;
+        } catch (error) {
+          responseDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+        }
+      }
+    </script>
+  </body>
+</html>

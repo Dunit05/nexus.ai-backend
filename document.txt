@@ -1,0 +1,105 @@
+2072U Computational Science I
+Course outline, Winter 2024
+Instructor
+Lennaert van Veen, office: UA3022.
+Office hours: Wednesdays and Fridays 14:00pm–15:00pm.
+Time and place
+Section 1: Wednesday and Friday 17:00-18:30 in UA1120.
+Section 2: Mondays and Thursdays
+20:00-21:30 in UA1120. First class on January 6th, last class on April 4th. There are no lectures
+and tutorials in the week of February 17th. Please consult MyOntarioTech for the tutorial schedule.
+Prerequisites
+MATH1020U, MATH1850U or MATH2050U, CSCI2000U.
+Text materials
+Python Programming And Numerical Methods: A Guide For Engineers And Scientists by Kong,
+Siauw & Bayen, Elsevier. Available at
+https://pythonnumericalmethods.studentorg.berkeley.edu/notebooks/Index.html.
+It is essential that you have Python and SciPy/NumPy/Matplotlib installed and ready
+to use.
+Linux-based operating systems are preferred as they are most suitable for
+computational science.
+Online resources
+In addition to Canvas, which will mainly be used for lecture slides, quizzes and grades, we will use
+Slack for discussions and GitHub Classroom for assignments and code written in (or in preparation
+for) lectures. In the first week of the course we will instruct you on setting up your repository and
+Slack account.
+Assessment
+Final 40%; assignments 40%, in-class quizzes 20%.
+Late assignments will not be considered.
+Course description
+There are two dominant themes in this course: programming applied to scientific computing and the
+theory and development of numerical algorithms. Using the scientific problem-solving environment
+provided by Python/NumPy, we will develop an understanding of the numerical computations
+that arise in many scientific problems and of their mathematical analysis. In particular, we will con-
+sider for a number of basic algorithms under what conditions they provide answers, how efficiently
+they do so and how accurate the results are.
+The topics include basic numerical linear algebra, interpolation, nonlinear root-finding, quadrature
+and ordinary differential equations.
+Course outcomes
+Upon completing this course you will be able to implement a number of basic computational al-
+gorithms in Python. You will understand how to evaluate the efficiency and accuracy of these
+algorithms using theoretical arguments as well as visualization. The ability to numerically approx-
+imate solutions to mathematical problems and visualize data will be useful in many of your third
+and fourth year courses and is increasingly regarded as a requirement for entry-level jobs in data
+science, machine learning and other forms of industrial research and development.
+
+Tentative schedule
+Week
+Topic
+Python
+Chapter
+1
+Introduction
+1–2
+Solving nonlinear equations
+Functions, loops, lists,
+19
+branching, matplotlib.pyplot
+3–4
+Solving systems of linear equations
+arrays, numpy.linalg
+14
+5–6
+Computational complexity
+8
+7–8
+Interpolation and least squares
+scipy.interpolate
+16, 17
+9–10
+Integration and differentiation
+scipy.integrate
+20, 21
+11–12
+Ordinary differential equations
+22
+Accessibility
+Students who require alternative testing and examination arrangements or other academic accom-
+modations must contact the Centre for Students with Disabilities as well as the instructor as early
+as possible.
+Academic integrity
+You are welcome to collaborate on the assignments and Slack channels will be available for that
+purpose. However, each student must hand in their own assignment for marking. Group submissions
+are not acceptable. If you submit Python code as part of an assignment, it can be the same as that
+of the students you collaborated with. In that case, clearly list your collaborators in the submitted
+files as a comment. Failure to do so may be considered plagiarism.
+Refer to
+http://academicintegrity.ontariotechu.ca/
+for the UOIT policy in matters of academic integrity.
+Final examination
+The final examination will take place during the final examination period at the end of the semester.
+It is your responsibility to check the published Examination Schedule. You must present your valid
+Student ID Card at the examination venue.
+Refer to
+https://science.ontariotechu.ca/undergraduate/academic-advising/academic-policies.php
+for procedures for requesting deferred examination on the basis of religious, medical or compassion-
+ate grounds.
+Course evaluation
+You will be invited through the MyCampus or Canvas web site to evaluate this course.
+Your
+opinion is important to the instructor and to Ontario Tech, please take ten minutes to formulate
+your opinion.
+More information
+Included on Canvas is an addendum to this outline that touches upon such matters as privacy,
+intellectual property and academic integrity.
+

@@ -3,3 +3,4 @@ venv
 env
 this
 dis
+firebase_credentials.json

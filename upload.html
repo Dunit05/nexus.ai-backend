@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Upload PDF</title>
+  </head>
+  <body>
+    <h2>Upload a PDF for RAG</h2>
+    <form id="uploadForm">
+      <label for="user_id">User ID:</label>
+      <input type="text" id="user_id" name="user_id" required />
+      <br /><br />
+      <input type="file" id="file" name="file" accept=".pdf" required />
+      <br /><br />
+      <button type="submit">Upload</button>
+    </form>
+
+    <p id="response"></p>
+
+    <script>
+      document.getElementById("uploadForm").onsubmit = async function (event) {
+        event.preventDefault();
+
+        let formData = new FormData();
+        formData.append("user_id", document.getElementById("user_id").value);
+        formData.append("file", document.getElementById("file").files[0]);
+
+        const response = await fetch("http://127.0.0.1:8000/upload_pdf", {
+          method: "POST",
+          body: formData,
+        });
+
+        const result = await response.json();
+        document.getElementById("response").innerText = JSON.stringify(
+          result,
+          null,
+          2
+        );
+      };
+    </script>
+  </body>
+</html>

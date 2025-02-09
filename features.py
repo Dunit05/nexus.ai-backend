@@ -3,11 +3,12 @@ import os
 import firebase_admin
 from firebase_admin import credentials, firestore
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Header, Depends, Request
+from fastapi import FastAPI, HTTPException, Header, Depends, Request, File, UploadFile
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import json
 import requests
+from vector_rag import *
 
 # Load environment variables
 load_dotenv()
@@ -268,3 +269,45 @@ def verify_firebase_token(authorization: str = Header(None)):
         return decoded_token  # Contains user details (uid, email)
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid authentication token")
+    
+    
+@app.post("/add_pdf/{user_id}")
+async def add_pdf(user_id: str, file: UploadFile = File(...)):
+    """
+    Upload a PDF, extract text, and store embeddings in Pinecone under user-specific index.
+    """
+    try:
+        # Save uploaded file temporarily
+        file_path = f"temp_{file.filename}"
+        with open(file_path, "wb") as buffer:
+            buffer.write(await file.read())
+        
+        # Store in Pinecone under user_id
+        add_new_pdf(file_path, user_id)
+        os.remove(file_path)  # Delete temp file
+        
+        return {"message": f"PDF added to Pinecone under index {user_id}."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/delete_index/{user_id}")
+async def delete_index(user_id: str):
+    """
+    Delete all vectors in the user's Pinecone index.
+    """
+    try:
+        delete_pinecone_index(user_id)
+        return {"message": f"All vectors in {user_id} index deleted."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/query_rag/{user_id}")
+async def query_rag(user_id: str, query: str):
+    """
+    Retrieve AI-generated answers from the user's Pinecone index.
+    """
+    try:
+        answer = generate_rag_answer(query, user_id)
+        return {"query": query, "answer": answer}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

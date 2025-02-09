@@ -4,7 +4,7 @@ import google.auth
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
-from fastapi import FastAPI, Request, HTTPException, Depends, Header
+from fastapi import FastAPI, Request, HTTPException, Depends, Header, Form
 from starlette.responses import RedirectResponse
 from features import *
 from vector_rag import *
@@ -21,7 +21,53 @@ class ChatRequest(BaseModel):
     user_id: str
     message: str
 
+class QueryRequest(BaseModel):
+    user_id: str
+    query: str
+    
+@app.post("/query_rag")
+async def query_rag(request: QueryRequest):
+    """
+    Retrieve relevant info using RAG based on user's query.
+    """
+    try:
+        response = generate_rag_answer(request.query, request.user_id)
+        return {"user_id": request.user_id, "query": request.query, "response": response}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
+
+# later problem ngl
+
+
+# Define the uploads directory
+UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
+
+# Ensure the folder exists when the application starts
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+
+@app.post("/upload_pdf")
+async def upload_pdf(file: UploadFile = File(...), user_id: str = Form(...)):
+    """
+    Uploads a PDF and processes it into the vector database.
+    """
+    try:
+        # Save the uploaded file
+        file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+        with open(file_path, "wb") as buffer:
+            buffer.write(await file.read())
+
+        # Process the PDF and add it to Pinecone under the user's ID
+        add_new_pdf(file_path, user_id)
+
+        return {"message": "File uploaded and processed successfully", "file_name": file.filename, "user_id": user_id}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+# it is now later problems
 
 @app.post("/chat")
 async def chat(request: ChatRequest):
