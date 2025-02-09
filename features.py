@@ -1,3 +1,4 @@
+import base64
 import cohere
 import os
 import firebase_admin
@@ -19,8 +20,11 @@ if not coherekey:
 # Initialize Cohere client
 co = cohere.ClientV2(api_key=coherekey)
 
+firebase_credentials_base64 = os.getenv("FIREBASE_CREDENTIALS")
+firebase_credentials_json = json.loads(base64.b64decode(firebase_credentials_base64).decode("utf-8"))
+
 # Initialize Firestore
-cred = credentials.Certificate("firebase_credentials.json")
+cred = credentials.Certificate(firebase_credentials_json)
 # Initialize Firebase Admin SDK (Only run once)
 try:
     firebase_admin.initialize_app(cred)
