@@ -1,7 +1,7 @@
 import cohere
 import os
 import firebase_admin
-from firebase_admin import credentials, firestore, auth
+from firebase_admin import credentials, firestore
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from pydantic import BaseModel
@@ -20,7 +20,13 @@ co = cohere.ClientV2(api_key=coherekey)
 
 # Initialize Firestore
 cred = credentials.Certificate("firebase_credentials.json")
-firebase_admin.initialize_app(cred)
+# Initialize Firebase Admin SDK (Only run once)
+try:
+    firebase_admin.initialize_app(cred)
+except ValueError:
+    print("Firebase already initialized.")
+
+# Firestore client
 db = firestore.client()
 
 # Initialize FastAPI app
@@ -125,7 +131,20 @@ def get_available_slots(unavailable_times, duration_hours):
 
     return {"available_times": available_slots}
 
-
+def chatbot_response(user_input: str) -> str:
+    try:
+        res = co.chat(
+            model="command-r7b-12-2024",
+            messages=[
+                {
+                    "role": "user",
+                    "content": user_input,
+                }
+            ],
+        )
+        return res.message.content[0].text
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     
 def checkAvailability1(user_input: str):
     try:

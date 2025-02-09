@@ -27,8 +27,8 @@ def main():
 
     # add_new_pdf('stats.pdf', 'hackhive')
 
-    # query= "What textbook is recommended for stats course?"
-    # print(generate_rag_answer(query, 'hackhive'))
+    query= "What textbook is recommended for stats course?"
+    print(generate_rag_answer(query, 'hackhive'))
 
 '''
 
