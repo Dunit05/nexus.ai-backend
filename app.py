@@ -7,6 +7,7 @@ from googleapiclient.discovery import build
 from fastapi import FastAPI, Request, HTTPException, Depends, Header
 from starlette.responses import RedirectResponse
 from features import *
+from vector_rag import *
 
 # Request model / schema for summarization post request
 class SummarizeRequest(BaseModel):
