@@ -17,46 +17,38 @@ class AvailabilityRequest(BaseModel):
     user_input: str
     
 class ChatRequest(BaseModel):
-    user_id: str  # Store conversations per user
-    message: str  # User's message
+    user_id: str
+    message: str
 
 
 
 @app.post("/chat")
-async def chat(request: ChatRequest, user: dict = Depends(verify_firebase_token)):
+async def chat(request: ChatRequest):
     """
-    Chat API that requires Firebase Authentication.
+    Store chat messages in Firestore.
     """
+    
+    bot = chatbot_response(request.message)
     try:
-        res = co.chat(
-            model="command-r-plus",
-            messages=[{"role": "user", "content": request.message}],
-        )
-
-        bot_response = res.message.content[0].text if res.message.content else "I'm not sure how to respond."
-
-        # ✅ Use Firebase UID instead of user_id from request
         chat_ref = db.collection("chats").add({
-            "user_id": user["uid"],  # Store Firebase UID
+            "user_id": request.user_id,
             "user_message": request.message,
-            "bot_response": bot_response,
+            "bot_response": bot,
             "timestamp": firestore.SERVER_TIMESTAMP
         })
 
-        return {"message_id": chat_ref[1].id, "bot_response": bot_response}
+        return {"message_id": chat_ref[1].id, "bot_response": bot}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
     
 @app.get("/chats/{user_id}")
-async def get_chat_history(user: dict = Depends(verify_firebase_token)):
+async def get_chats(user_id: str):
     """
-    Fetch chat history for the authenticated user.
+    Fetch all chat messages for a user.
     """
     try:
-        chats = db.collection("chats").where("user_id", "==", user["uid"]).order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
-
+        chats = db.collection("chats").where("user_id", "==", user_id).order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
         return [
             {
                 "message_id": chat.id,
@@ -81,34 +73,6 @@ def get_current_user(authorization: str = Header(None)):
     user_data = verify_firebase_token(token)  # Validate token
     return user_data  # Returns user details
 
-# ✅ Protect /chat with Firebase authentication
-@app.post("/chat")
-async def chat(request: ChatRequest, user: dict = Depends(get_current_user)):
-    """
-    Chat API that requires Firebase Authentication.
-    """
-    try:
-        # Send user input to Cohere AI
-        res = co.chat(
-            model="command-r-plus",
-            messages=[{"role": "user", "content": request.message}],
-        )
-
-        bot_response = res.message.content[0].text if res.message.content else "I'm not sure how to respond."
-
-        # Store chat history in Firestore
-        chat_ref = db.collection("chats").add({
-            "user_id": user["uid"],  # Use Firebase UID instead of user_id from request
-            "user_message": request.message,
-            "bot_response": bot_response,
-            "timestamp": firestore.SERVER_TIMESTAMP
-        })
-
-        return {"message_id": chat_ref[1].id, "bot_response": bot_response}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 
 # this is an example of how the api routes work
 @app.get("/")
@@ -118,34 +82,35 @@ async def root():
 
 # API endpoint to summarize text and save it to Firestore
 @app.post("/summarize")
-async def summarize(request: SummarizeRequest, user: dict = Depends(get_current_user)):
+async def summarize(request: SummarizeRequest):
     """
-    Summarize text and associate it with the authenticated Firebase user.
+    Summarize text and save it to Firestore (No authentication required).
     """
-    summary = summarizebot(request.message)
+    try:
+        summary = summarizebot(request.message)
 
-    note_ref = db.collection("summaries").add({
-        "user_id": user["uid"],  # Use Firebase UID
-        "original_text": request.message,
-        "summary": summary,
-        "timestamp": firestore.SERVER_TIMESTAMP
-    })
+        note_ref = db.collection("summaries").add({
+            "user_id": request.user_id,  # ✅ Directly use user_id from request
+            "original_text": request.message,
+            "summary": summary,
+            "timestamp": firestore.SERVER_TIMESTAMP
+        })
 
-    return {"summary": summary, "note_id": note_ref[1].id}
+        return {"summary": summary, "note_id": note_ref[1].id}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # API endpoint to retrieve summaries for a specific user
 
-@app.get("/summaries")
-async def get_summaries(user: dict = Depends(verify_firebase_token)):
+@app.get("/summaries/{user_id}")
+async def get_summaries(user_id: str):
     """
-    Fetch all summaries for the authenticated user using email instead of UID.
+    Fetch all summaries for a specific user (No authentication required).
     """
     try:
-        user_email = user.get("email")  # ✅ Extract email from Firebase token
-        if not user_email:
-            raise HTTPException(status_code=400, detail="User email not found")
-
-        summaries = db.collection("summaries").where("user_id", "==", user_email).order_by(
+        summaries = db.collection("summaries").where("user_id", "==", user_id).order_by(
             "timestamp", direction=firestore.Query.DESCENDING
         ).stream()
 
@@ -161,14 +126,119 @@ async def get_summaries(user: dict = Depends(verify_firebase_token)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/debug_user")
 async def debug_user(user: dict = Depends(verify_firebase_token)):
     return user  # ✅ Check what Firebase is returning
 
 
 @app.post("/checkAvailability")
-def checkAvailability(request: AvailabilityRequest):
-    return checkAvailability1(request.user_input)
+async def checkAvailability(request: AvailabilityRequest):
+    """
+    Extract event details, find available time slots, and store in Firestore.
+    """
+    try:
+        # Extract event details using AI
+        res = co.chat(
+            model="command-r-plus",
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""
+                    Extract scheduling details and return a JSON object:
+                    {{
+                        "task_name": "<Task Name>",
+                        "duration_hours": <Duration in hours (positive number)>,
+                        "week_start": "<YYYY-MM-DD>",
+                        "week_end": "<YYYY-MM-DD>"
+                    }}
+
+                    Respond with ONLY the JSON object. No explanations, formatting, or extra text.
+                    If extraction fails, return: {{}}.
+
+                    Text: {request.user_input}
+                    """
+                }
+            ],
+        )
+
+        response_text = res.message.content[0].text if res.message.content else ""
+        response_text = response_text.strip("```json").strip("```").strip()
+
+        # Parse the AI response into event_data
+        try:
+            event_data = json.loads(response_text)
+            if not event_data.get("task_name") or not event_data.get("duration_hours"):
+                raise ValueError("Missing required fields in AI response.")
+        except (json.JSONDecodeError, ValueError):
+            raise HTTPException(status_code=500, detail="AI returned invalid JSON.")
+
+        print("✅ Extracted Event Data:", json.dumps(event_data, indent=2))
+
+        # Step 2: Fetch unavailable times
+        logic_apps_url = "https://prod-21.northcentralus.logic.azure.com:443/workflows/e1d025b460494c53862f958fe67c0be9/triggers/When_a_HTTP_request_is_received/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2FWhen_a_HTTP_request_is_received%2Frun&sv=1.0&sig=3FElBEyk25j3s6YLw3L2nw45EjCugN7May7ixC6NUWc"
+        response = requests.post(logic_apps_url, json=event_data)
+
+        try:
+            unavailable_times = response.json()
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=500, detail="Logic Apps returned invalid JSON.")
+
+        print("📅 Unavailable Times:", json.dumps(unavailable_times, indent=2))
+
+        # Step 3: Compute available slots
+        available_slots = get_available_slots(unavailable_times, event_data["duration_hours"])
+        print("✅ Computed Available Slots:", json.dumps(available_slots, indent=2))
+
+        # Step 4: Select the best time
+        selected_time = provideDates(event_data, available_slots)
+
+        # Step 5: Store event details in Firestore
+        event_ref = db.collection("events").add({
+            "user_id": "test_user",  # Replace with authenticated user ID if using auth
+            "task_name": event_data["task_name"],
+            "duration_hours": event_data["duration_hours"],
+            "week_start": event_data["week_start"],
+            "week_end": event_data["week_end"],
+            "selected_time": selected_time.get("selected_time", None),
+            "available_slots": available_slots["available_times"],
+            "timestamp": firestore.SERVER_TIMESTAMP
+        })
+
+        return {
+            "event_id": event_ref[1].id,
+            "task_name": event_data["task_name"],
+            "available_times": available_slots["available_times"],
+            "selected_time": selected_time.get("selected_time", None)
+        }
+
+    except Exception as e:
+        print(f"❌ ERROR: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/events/{user_id}")
+async def get_events(user_id: str):
+    """
+    Fetch all events scheduled for a user from Firestore.
+    """
+    try:
+        events_ref = db.collection("events").where("user_id", "==", user_id).order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
+
+        return [
+            {
+                "event_id": event.id,
+                "task_name": event.to_dict().get("task_name"),
+                "duration_hours": event.to_dict().get("duration_hours"),
+                "week_start": event.to_dict().get("week_start"),
+                "week_end": event.to_dict().get("week_end"),
+                "selected_time": event.to_dict().get("selected_time"),
+                "available_slots": event.to_dict().get("available_slots"),
+                "timestamp": event.to_dict().get("timestamp")
+            }
+            for event in events_ref
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 
@@ -228,5 +298,17 @@ async def get_reminders(user_id: str):
             }
             for reminder in reminders
         ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/test_firestore")
+async def test_firestore():
+    """
+    Test Firestore connection by retrieving all documents from the 'chats' collection.
+    """
+    try:
+        chats_ref = db.collection("chats").limit(1).stream()
+        result = [doc.to_dict() for doc in chats_ref]
+        return {"status": "success", "data": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
